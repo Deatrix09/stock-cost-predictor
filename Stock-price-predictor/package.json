@@ -1,0 +1,11 @@
+{
+  "dependencies": {
+    "@mui/material": "^5.15.11",
+    "@mui/x-charts": "^6.19.5",
+    "@emotion/react": "^11.11.3",
+    "@emotion/styled": "^11.11.0",
+    "@material-tailwind/react": "^2.1.9",
+    "apexcharts": "^3.46.0",
+    "react-apexcharts": "^1.4.1"
+  }
+}

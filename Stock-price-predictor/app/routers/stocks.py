@@ -71,24 +71,3 @@ async def get_stock_info(symbol: str):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.get("/search/{query}")
-async def search_stocks(query: str):
-    """
-    Search for stocks by symbol or name
-    """
-    # This is a placeholder. In a real application, you would want to implement
-    # a more sophisticated search using a proper market data API
-    try:
-        stock = yf.Ticker(query)
-        info = stock.info
-        return {
-            "results": [
-                {
-                    "symbol": query,
-                    "name": info.get("longName", ""),
-                    "exchange": info.get("exchange", "")
-                }
-            ]
-        }
-    except Exception as e:
-        return {"results": []}

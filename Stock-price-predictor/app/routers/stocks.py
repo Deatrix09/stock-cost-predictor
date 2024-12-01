@@ -8,7 +8,7 @@ router = APIRouter()
 @router.get("/historical/{symbol}")
 async def get_historical_data(
     symbol: str,
-    period: Optional[str] = "1y",
+    period: Optional[str] = "5y",
     interval: Optional[str] = "1d"
 ):
     """

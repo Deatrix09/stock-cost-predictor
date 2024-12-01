@@ -1,49 +1,55 @@
 from fastapi import APIRouter, HTTPException
-from typing import Optional
-import yfinance as yf
-from datetime import datetime
+from typing import Optional, List
+from ..utils.stock_predictor import StockPredictor
+from ..routers.stocks import get_historical_data
+from pydantic import BaseModel
 
 router = APIRouter()
+predictor = StockPredictor()
 
-@router.get("/stock/{symbol}")
-async def get_stock_data(symbol: str, period: Optional[str] = "1y"):
-    """
-    Get basic stock data including historical prices and company info
-    """
+class PredictionResponse(BaseModel):
+    symbol: str
+    predictions: List[dict]
+    model_type: str = "ARIMA"
+    forecast_days: int
+    training_period: str
+    data_points_used: int
+
+@router.get("/forecast/{symbol}")
+async def get_stock_forecast(
+    symbol: str, 
+    days: Optional[int] = 7,
+    history_period: Optional[str] = "5y",
+    interval: Optional[str] = "1d"
+):
+    """Get stock price predictions for the next n days"""
     try:
-        # Fetch data
-        stock = yf.Ticker(symbol)
-        hist_data = stock.history(period=period)
+        # Get historical data using the existing endpoint function
+        stock_data = await get_historical_data(
+            symbol,
+            period=history_period,
+            interval=interval
+        )
+        historical_data = stock_data.get('data', [])
         
-        if hist_data.empty:
-            raise HTTPException(status_code=404, detail=f"No data found for symbol {symbol}")
+        # Ensure minimum data requirements (252 trading days ≈ 1 year)
+        if len(historical_data) < 252:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Insufficient historical data. Got {len(historical_data)} days, need at least 252 days."
+            )
+
+        # Train model and make predictions
+        predictor.train(historical_data)
+        predictions = predictor.predict_next_days(days=days)
         
-        # Get basic info
-        info = stock.info
+        return PredictionResponse(
+            symbol=symbol,
+            predictions=predictions,
+            forecast_days=days,
+            training_period=history_period,
+            data_points_used=len(historical_data)
+        )
         
-        # Format historical data
-        historical = []
-        for index, row in hist_data.iterrows():
-            historical.append({
-                "date": index.strftime("%Y-%m-%d"),
-                "open": float(row["Open"]),
-                "high": float(row["High"]),
-                "low": float(row["Low"]),
-                "close": float(row["Close"]),
-                "volume": float(row["Volume"])
-            })
-        
-        # Format response
-        return {
-            "symbol": symbol,
-            "company_name": info.get("longName", symbol),
-            "sector": info.get("sector", "N/A"),
-            "industry": info.get("industry", "N/A"),
-            "market_cap": info.get("marketCap", 0),
-            "current_price": info.get("currentPrice", hist_data["Close"].iloc[-1]),
-            "currency": info.get("currency", "USD"),
-            "historical_data": historical
-        }
-            
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -27,7 +27,7 @@ class ApiService {
     }
   }
 
-  async getHistoricalData(symbol: string, period: string = '1y', interval: string = '1d'): Promise<HistoricalDataResponse> {
+  async getHistoricalData(symbol: string, period: string = '5y', interval: string = '1wk'): Promise<HistoricalDataResponse> {
     try {
       this.validateSymbol(symbol);
       console.log('Fetching historical data:', { symbol, period, interval });

@@ -1,17 +1,8 @@
 import React from 'react';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  Typography,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper
-} from "@mui/material";
+import { theme } from '../styles/theme';
+import { Line } from 'react-chartjs-2';
+import { HistoricalDataResponse } from '../types/StockTypes';
+import { formatCurrency, formatNumber } from '../utils/formatters';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -22,8 +13,6 @@ import {
   Tooltip,
   Legend
 } from 'chart.js';
-import { Line } from 'react-chartjs-2';
-import { HistoricalDataResponse } from '../types/StockTypes';
 
 // Register ChartJS components
 ChartJS.register(
@@ -41,190 +30,174 @@ interface StockChartProps {
 }
 
 const StockChart: React.FC<StockChartProps> = ({ data }) => {
-  console.log('Raw data sample:', data?.data?.[0]); // Debug log
-
   if (!data?.data || !Array.isArray(data.data) || data.data.length === 0) {
     return (
-      <Card>
-        <CardContent sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 400 }}>
-          <Typography color="text.secondary">No data available</Typography>
-        </CardContent>
-      </Card>
+      <div className={theme.card}>
+        <div className={theme.cardContent}>
+          <div className="flex items-center justify-center h-96">
+            <p className="text-gray-400">No historical data available</p>
+          </div>
+        </div>
+      </div>
     );
   }
 
-  // Use the correct property names as they come from the API
-  const normalizedData = data.data.map(item => {
-    console.log('Raw item:', item);
-    return {
-      date: item.date,
-      open: item.open,
-      high: item.high,
-      low: item.low,
-      close: item.close,
-      volume: item.volume,
-      dividends: item.dividends,
-      stockSplits: item.stockSplits
-    };
-  });
+  const sortedData = [...data.data].sort((a, b) => 
+    new Date(a.date).getTime() - new Date(b.date).getTime()
+  );
 
-  // Add debug log
-  console.log('First normalized item:', normalizedData[0]);
-
-  const sortedData = [...normalizedData].sort((a, b) => {
-    const dateA = new Date(a.date);
-    const dateB = new Date(b.date);
-    console.log('Comparing dates:', { a: a.date, b: b.date, dateA, dateB });
-    return dateB.getTime() - dateA.getTime();
-  });
-
-  console.log('First sorted item:', sortedData[0]);
-
-  const formatDate = (dateStr: string) => {
-    try {
-      console.log('Formatting date string:', dateStr);
-      const date = new Date(dateStr);
-      if (isNaN(date.getTime())) {
-        console.log('Invalid date string:', dateStr);
-        return 'Invalid Date';
+  const chartData = {
+    labels: sortedData.map(item => new Date(item.date).toLocaleDateString()),
+    datasets: [
+      {
+        label: 'Close Price',
+        data: sortedData.map(item => item.close),
+        borderColor: '#7c3aed',
+        backgroundColor: 'rgba(124, 58, 237, 0.1)',
+        tension: 0.4,
+        fill: false,
+        borderWidth: 1.5,
+        pointRadius: 0,
+      },
+      {
+        label: 'Open Price',
+        data: sortedData.map(item => item.open),
+        borderColor: 'rgba(124, 58, 237, 0.2)',
+        backgroundColor: 'rgba(124, 58, 237, 0.05)',
+        tension: 0.4,
+        fill: false,
       }
-      const formatted = date.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-      });
-      console.log('Formatted date:', formatted);
-      return formatted;
-    } catch (error) {
-      console.error('Date formatting error:', error);
-      return 'Invalid Date';
-    }
+    ],
   };
 
-  const formatPrice = (price: number | string | undefined) => {
-    if (price === undefined || price === null) return 'N/A';
-    const numPrice = typeof price === 'string' ? parseFloat(price) : price;
-    return isNaN(numPrice) ? 'N/A' : `$${numPrice.toFixed(2)}`;
-  };
-
-  const formatVolume = (volume: number | string | undefined) => {
-    if (volume === undefined || volume === null) return 'N/A';
-    const numVolume = typeof volume === 'string' ? parseFloat(volume) : volume;
-    return isNaN(numVolume) ? 'N/A' : numVolume.toLocaleString();
-  };
-
-  const formatDividend = (dividend: number | string | undefined) => {
-    if (dividend === undefined || dividend === null) return '$0.0000';
-    const numDividend = typeof dividend === 'string' ? parseFloat(dividend) : dividend;
-    return isNaN(numDividend) ? '$0.0000' : `$${numDividend.toFixed(4)}`;
-  };
-
-  const formatSplit = (split: number | string | undefined) => {
-    if (split === undefined || split === null) return '0';
-    const numSplit = typeof split === 'string' ? parseFloat(split) : split;
-    return isNaN(numSplit) ? '0' : numSplit.toString();
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'top' as const,
+        labels: {
+          color: '#fff',
+        },
+      },
+      title: {
+        display: true,
+        text: `${data.symbol} Historical Data`,
+        color: '#fff',
+      },
+    },
+    scales: {
+      y: {
+        grid: {
+          color: 'rgba(255, 255, 255, 0.1)',
+          drawBorder: false,
+        },
+        ticks: {
+          color: '#fff',
+          padding: 10,
+          font: {
+            size: 11
+          }
+        },
+        beginAtZero: false,
+      },
+      x: {
+        grid: {
+          color: 'rgba(255, 255, 255, 0.1)',
+          drawBorder: false,
+        },
+        ticks: {
+          color: '#fff',
+          maxRotation: 45,
+          minRotation: 45,
+          padding: 10,
+          font: {
+            size: 11
+          }
+        },
+      },
+    },
+    interaction: {
+      mode: 'index' as const,
+      intersect: false,
+    },
+    layout: {
+      padding: {
+        left: 10,
+        right: 20,
+        top: 0,
+        bottom: 10
+      }
+    },
   };
 
   return (
-    <Card>
-      <CardHeader
-        title={`${data.symbol} Historical Data`}
-        subheader={`${sortedData.length} records`}
-      />
-      <CardContent>
-        <div style={{ marginBottom: '2rem', height: '400px' }}>
-          <Line
-            data={{
-              labels: sortedData.map(item => formatDate(item.date)),
-              datasets: [
-                {
-                  label: 'Close Price',
-                  data: sortedData.map(item => item.close),
-                  borderColor: 'rgb(75, 192, 192)',
-                  backgroundColor: 'rgba(75, 192, 192, 0.5)',
-                  tension: 0.1
-                },
-                {
-                  label: 'Open Price',
-                  data: sortedData.map(item => item.open),
-                  borderColor: 'rgb(255, 99, 132)',
-                  backgroundColor: 'rgba(255, 99, 132, 0.5)',
-                  tension: 0.1
-                }
-              ]
-            }}
-            options={{
-              responsive: true,
-              maintainAspectRatio: false,
-              interaction: {
-                mode: 'index' as const,
-                intersect: false,
-              },
-              plugins: {
-                legend: {
-                  position: 'top' as const,
-                },
-                title: {
-                  display: true,
-                  text: `${data.symbol.toUpperCase()} Stock Price History`,
-                },
-              },
-              scales: {
-                y: {
-                  type: 'linear' as const,
-                  display: true,
-                  position: 'left' as const,
-                  title: {
-                    display: true,
-                    text: 'Price ($)'
-                  }
-                },
-                x: {
-                  reverse: true,  // Display newest dates on the right
-                  title: {
-                    display: true,
-                    text: 'Date'
-                  }
-                }
-              },
-            }}
-          />
+    <div className={theme.card}>
+      <div className={theme.cardHeader}>
+        <h2 className={theme.title}>Historical Price Data</h2>
+        <p className={theme.subtitle}>
+          {data.data.length} historical records
+        </p>
+      </div>
+
+      <div className={theme.cardContent}>
+        {/* Chart */}
+        <div className="mt-4 w-full">
+          <div className="h-[600px] w-full">
+            <Line data={chartData} options={chartOptions} />
+          </div>
         </div>
 
-        <TableContainer component={Paper} sx={{ maxHeight: 600 }}>
-          <Table stickyHeader>
-            <TableHead>
-              <TableRow>
-                <TableCell>Date</TableCell>
-                <TableCell align="right">Open</TableCell>
-                <TableCell align="right">High</TableCell>
-                <TableCell align="right">Low</TableCell>
-                <TableCell align="right">Close</TableCell>
-                <TableCell align="right">Volume</TableCell>
-                <TableCell align="right">Dividends</TableCell>
-                <TableCell align="right">Stock Splits</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {sortedData.map((row, index) => (
-                <TableRow key={`${row.date}-${index}`}>
-                  <TableCell component="th" scope="row">
-                    {formatDate(row.date)}
-                  </TableCell>
-                  <TableCell align="right">{formatPrice(row.open)}</TableCell>
-                  <TableCell align="right">{formatPrice(row.high)}</TableCell>
-                  <TableCell align="right">{formatPrice(row.low)}</TableCell>
-                  <TableCell align="right">{formatPrice(row.close)}</TableCell>
-                  <TableCell align="right">{formatVolume(row.volume)}</TableCell>
-                  <TableCell align="right">{formatDividend(row.dividends)}</TableCell>
-                  <TableCell align="right">{formatSplit(row.stockSplits)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </CardContent>
-    </Card>
+        {/* Historical Data Table with Fixed Header */}
+        <div className="mt-8">
+          <div className="relative overflow-hidden">
+            <div className="overflow-x-auto">
+              <div className="overflow-y-auto max-h-[400px] scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-gray-800">
+                <table className={`${theme.table} relative`}>
+                  <thead className="sticky top-0 z-10 bg-gray-900">
+                    <tr>
+                      <th className={`${theme.tableHeader} p-4 whitespace-nowrap`}>Date</th>
+                      <th className={`${theme.tableHeader} p-4 whitespace-nowrap`}>Open</th>
+                      <th className={`${theme.tableHeader} p-4 whitespace-nowrap`}>High</th>
+                      <th className={`${theme.tableHeader} p-4 whitespace-nowrap`}>Low</th>
+                      <th className={`${theme.tableHeader} p-4 whitespace-nowrap`}>Close</th>
+                      <th className={`${theme.tableHeader} p-4 whitespace-nowrap`}>Volume</th>
+                    </tr>
+                  </thead>
+                  <tbody className="relative">
+                    {sortedData.map((row, index) => (
+                      <tr 
+                        key={`${row.date}-${index}`}
+                        className="hover:bg-gray-800/50 transition-colors duration-200"
+                      >
+                        <td className={`${theme.tableCell} p-4 whitespace-nowrap`}>
+                          {new Date(row.date).toLocaleDateString()}
+                        </td>
+                        <td className={`${theme.tableCell} p-4 whitespace-nowrap`}>
+                          {formatCurrency(row.open)}
+                        </td>
+                        <td className={`${theme.tableCell} p-4 whitespace-nowrap`}>
+                          {formatCurrency(row.high)}
+                        </td>
+                        <td className={`${theme.tableCell} p-4 whitespace-nowrap`}>
+                          {formatCurrency(row.low)}
+                        </td>
+                        <td className={`${theme.tableCell} p-4 whitespace-nowrap`}>
+                          {formatCurrency(row.close)}
+                        </td>
+                        <td className={`${theme.tableCell} p-4 whitespace-nowrap`}>
+                          {formatNumber(row.volume)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 

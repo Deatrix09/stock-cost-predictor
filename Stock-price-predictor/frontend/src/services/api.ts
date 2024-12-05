@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { handleApiError } from '../utils/errorHandling';
-import { StockInfo, HistoricalDataPoint, ApiError, HistoricalDataResponse } from '../types/StockTypes';
+import { StockInfo, HistoricalDataPoint, ApiError, HistoricalDataResponse, PredictionDataPoint, ModelMetrics, PredictionResponse } from '../types/StockTypes';
 
 const API_BASE_URL = 'http://localhost:8000/api';
 
@@ -56,6 +56,24 @@ class ApiService {
         throw new Error('Search query is required');
       }
       const response = await axios.get(`${API_BASE_URL}/stocks/search/${encodeURIComponent(query)}`);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  }
+
+  async getPredictions(
+    symbol: string, 
+    days: number = 7, 
+    period: string = '5y', 
+    interval: string = '1d'
+  ): Promise<PredictionResponse> {
+    try {
+      this.validateSymbol(symbol);
+      const response = await axios.get<PredictionResponse>(
+        `${API_BASE_URL}/predictions/forecast/${symbol.toUpperCase()}`,
+        { params: { days, period, interval } }
+      );
       return response.data;
     } catch (error) {
       throw handleApiError(error);

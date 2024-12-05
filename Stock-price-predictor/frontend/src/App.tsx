@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import api from './services/api';
 import CompanyInfo from './components/CompanyInfo';
 import StockChart from './components/StockChart';
-import { StockInfo, HistoricalDataPoint, ApiError, HistoricalDataResponse } from './types/StockTypes';
+import PredictionDashboard from './components/PredictionDashboard';
+import { StockInfo, HistoricalDataPoint, ApiError, HistoricalDataResponse, PredictionResponse } from './types/StockTypes';
 
 function App() {
   const [symbol, setSymbol] = useState('');
@@ -10,6 +11,7 @@ function App() {
   const [historicalData, setHistoricalData] = useState<HistoricalDataResponse | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
   const [loading, setLoading] = useState(false);
+  const [predictions, setPredictions] = useState<PredictionResponse | null>(null);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -17,13 +19,15 @@ function App() {
     setError(null);
     
     try {
-      const [info, data] = await Promise.all([
+      const [info, data, pred] = await Promise.all([
         api.getStockInfo(symbol),
-        api.getHistoricalData(symbol)
+        api.getHistoricalData(symbol),
+        api.getPredictions(symbol)
       ]);
       
       setStockInfo(info);
       setHistoricalData(data);
+      setPredictions(pred);
     } catch (err) {
       console.log('Error fetching data:', err);
       setError(err as ApiError);
@@ -78,10 +82,12 @@ function App() {
           )}
         </div>
 
-        {stockInfo && historicalData && (
+        {stockInfo && historicalData && predictions && (
           <div className="space-y-8">
-            <StockChart data={historicalData} />
             <CompanyInfo data={stockInfo} />
+            <PredictionDashboard predictions={predictions} />
+            <StockChart data={historicalData} />
+            
           </div>
         )}
       </div>

@@ -5,6 +5,17 @@ from datetime import datetime, timedelta
 
 router = APIRouter()
 
+def get_logo_url(symbol: str) -> str:
+    """Get company logo URL"""
+    try:
+        # Using clearbit API for logos (free tier available)
+        domain = yf.Ticker(symbol).info.get('website', '').replace('http://', '').replace('https://', '').split('/')[0]
+        if domain:
+            return f"https://logo.clearbit.com/{domain}"
+        return None
+    except:
+        return None
+
 @router.get("/historical/{symbol}")
 async def get_historical_data(
     symbol: str,
@@ -64,8 +75,12 @@ async def get_stock_info(symbol: str):
     try:
         stock = yf.Ticker(symbol)
         info = stock.info
+        
+        # Add logo URL to the response
+        info['logoUrl'] = get_logo_url(symbol)
+        
         return {
-            "symbol": symbol,
+            "symbol": symbol.upper(),
             "info": info
         }
     except Exception as e:

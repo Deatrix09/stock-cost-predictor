@@ -2,16 +2,30 @@ from fastapi import APIRouter, HTTPException
 import yfinance as yf
 from typing import List, Optional
 from datetime import datetime, timedelta
+import requests
 
 router = APIRouter()
 
 def get_logo_url(symbol: str) -> str:
-    """Get company logo URL"""
+    """Get company logo URL using multiple sources"""
     try:
-        # Using clearbit API for logos (free tier available)
-        domain = yf.Ticker(symbol).info.get('website', '').replace('http://', '').replace('https://', '').split('/')[0]
-        if domain:
-            return f"https://logo.clearbit.com/{domain}"
+        # Try multiple sources for logos
+        sources = [
+            f"https://logo.clearbit.com/{yf.Ticker(symbol).info.get('website', '').replace('http://', '').replace('https://', '').split('/')[0]}",
+            f"https://storage.googleapis.com/iex/api/logos/{symbol.lower()}.png",
+            f"https://companieslogo.com/img/orig/{symbol}.D-93b0e5e0.png",
+            f"https://companiesmarketcap.com/img/company-logos/64/{symbol}.png"
+        ]
+        
+        # Return the first working URL
+        for url in sources:
+            try:
+                response = requests.head(url, timeout=2)
+                if response.status_code == 200:
+                    return url
+            except:
+                continue
+                
         return None
     except:
         return None

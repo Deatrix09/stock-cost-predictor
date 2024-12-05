@@ -27,19 +27,22 @@ const CompanyInfo: React.FC<CompanyInfoProps> = ({ data }) => {
     if (!data.info.logoUrl || logoError) {
       // Fallback to symbol letter if no logo or logo failed to load
       return (
-        <div className="w-16 h-16 bg-purple-600 rounded-lg flex items-center justify-center text-2xl font-bold">
+        <div className="w-16 h-16 bg-purple-600/20 rounded-lg flex items-center justify-center text-2xl font-bold text-purple-400 border border-purple-600/30">
           {data.symbol[0]}
         </div>
       );
     }
 
     return (
-      <img
-        src={data.info.logoUrl}
-        alt={`${data.info.shortName} logo`}
-        className="w-16 h-16 rounded-lg object-contain bg-white p-2"
-        onError={() => setLogoError(true)}
-      />
+      <div className="w-16 h-16 bg-white/10 rounded-lg p-2 border border-white/20 backdrop-blur-sm">
+        <img
+          src={data.info.logoUrl}
+          alt={`${data.info.shortName} logo`}
+          className="w-full h-full object-contain rounded"
+          onError={() => setLogoError(true)}
+          loading="lazy"
+        />
+      </div>
     );
   };
 

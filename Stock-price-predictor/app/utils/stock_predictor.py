@@ -18,10 +18,42 @@ class StockPredictor:
         self.last_date = None
         
     def calculate_volatility(self, prices, window=30):
-        """Calculate historical volatility with rolling window"""
-        returns = np.diff(prices) / prices[:-1]
-        rolling_std = pd.Series(returns).rolling(window=min(window, len(returns))).std()
-        return float(rolling_std.iloc[-1] * np.sqrt(252))  # Annualized volatility
+        """
+        Calculate historical volatility using multiple methods and combine them
+        Based on research from: https://papers.ssrn.com/sol3/papers.cfm?abstract_id=1502915
+        """
+        try:
+            # Calculate returns
+            returns = np.diff(prices) / prices[:-1]
+            
+            # 1. Historical rolling volatility
+            rolling_std = pd.Series(returns).rolling(window=min(window, len(returns))).std()
+            hist_vol = float(rolling_std.iloc[-1] * np.sqrt(252))
+            
+            # 2. EWMA volatility (RiskMetrics approach)
+            lambda_param = 0.94  # RiskMetrics standard
+            weights = np.array([(1 - lambda_param) * lambda_param**i for i in range(len(returns))])
+            weights = weights[::-1]  # Reverse to give more weight to recent observations
+            weights = weights / weights.sum()
+            ewma_vol = np.sqrt(np.sum(weights * returns**2) * 252)
+            
+            # 3. Parkinson volatility (using high-low range)
+            if hasattr(self, 'high_low_data'):
+                high_prices = self.high_low_data['high'][-window:]
+                low_prices = self.high_low_data['low'][-window:]
+                log_hl = np.log(high_prices / low_prices)
+                park_vol = np.sqrt(1 / (4 * np.log(2)) * np.mean(log_hl**2) * 252)
+            else:
+                park_vol = hist_vol
+            
+            # Combine volatilities with weights
+            combined_vol = (0.4 * hist_vol + 0.4 * ewma_vol + 0.2 * park_vol)
+            
+            return combined_vol
+            
+        except Exception as e:
+            logger.error(f"Error calculating volatility: {str(e)}")
+            return None
 
     def prepare_data(self, historical_data):
         """Prepare and transform the data for ARIMA modeling"""
@@ -111,7 +143,6 @@ class StockPredictor:
             raise ValueError(f"Error training model: {str(e)}")
 
     def predict_next_days(self, days=7):
-        """Generate predictions for the next n days"""
         if self.model is None:
             raise ValueError("Model not trained. Call train() first.")
         
@@ -119,66 +150,78 @@ class StockPredictor:
             # Get forecast and confidence intervals
             forecast_result = self.model.get_forecast(steps=days)
             forecast_mean = forecast_result.predicted_mean
-            conf_int = forecast_result.conf_int()
+            conf_int = forecast_result.conf_int(alpha=0.05)  # 95% confidence interval
             
-            # Convert to numpy arrays for easier handling
-            predictions_array = np.array(forecast_mean)
-            confidence_bounds = np.array(conf_int)
+            # Calculate prediction intervals using sophisticated method
+            residuals = self.model.resid
+            rmse = np.sqrt(np.mean(residuals**2))
             
-            # Generate future dates (excluding weekends)
-            future_dates = pd.date_range(
-                start=self.last_date + timedelta(days=1),
-                periods=days,
-                freq='B'  # Business days
-            )
-            
-            # Base daily volatility
-            base_volatility = self.volatility / np.sqrt(252)
+            # Calculate degrees of freedom
+            n = len(self.training_data)
+            k = sum(self.model.specification.ar_lags) + sum(self.model.specification.ma_lags) + 1
+            dof = n - k
             
             predictions = []
             for i in range(days):
-                # Increase volatility with time
-                time_factor = 1 + (i * 0.1)  # 10% increase per day
-                daily_volatility = base_volatility * time_factor
+                pred = max(0.01, float(forecast_mean[i]))
                 
-                # Adjust confidence level based on prediction distance
-                confidence_level = 0.95 * (1 - (i * 0.02))  # Decreases by 2% per day
-                confidence_level = max(0.70, confidence_level)  # Don't go below 70%
+                # Time-varying forecast standard error
+                # Based on: https://stats.stackexchange.com/questions/431467/arima-forecast-confidence-intervals
+                h = i + 1  # forecast horizon
+                forecast_std = rmse * np.sqrt(1 + h/n + (h * (h-1))/(2 * n))
                 
-                # Get base prediction and confidence intervals
-                pred = float(predictions_array[i])
-                lower = float(confidence_bounds[i][0])
-                upper = float(confidence_bounds[i][1])
+                # Calculate t-statistic for confidence interval
+                from scipy import stats
+                t_value = stats.t.ppf(0.975, dof)
                 
-                # Widen the confidence interval based on increasing uncertainty
-                interval_width = upper - lower
-                interval_expansion = 1 + (i * 0.05)  # 5% wider per day
-                lower = pred - (interval_width / 2 * interval_expansion)
-                upper = pred + (interval_width / 2 * interval_expansion)
+                # Calculate uncertainty components
+                model_uncertainty = t_value * forecast_std
+                market_uncertainty = pred * self.volatility * np.sqrt(h/252)
                 
-                # Add volatility component
-                volatility_adjustment = np.random.normal(0, daily_volatility)
+                # Combine uncertainties
+                total_uncertainty = np.sqrt(model_uncertainty**2 + market_uncertainty**2)
                 
-                # Adjust prediction with volatility while keeping within bounds
-                adjusted_pred = pred * (1 + volatility_adjustment)
-                final_pred = max(min(adjusted_pred, upper), lower)
+                # Calculate bounds
+                lower = max(0.01, pred - total_uncertainty)
+                upper = pred + total_uncertainty
+                
+                # Calculate dynamic confidence score
+                confidence_factors = [
+                    0.95 * np.exp(-h/252),  # Time decay (annualized)
+                    1 - (forecast_std/pred),  # Model accuracy
+                    stats.norm.cdf(-abs(residuals.mean())/residuals.std()),  # Residual normality
+                    1 - min(1, self.volatility/0.5),  # Volatility penalty
+                    1 - (total_uncertainty/pred)  # Relative uncertainty
+                ]
+                
+                # Weight factors based on importance
+                weights = [0.3, 0.25, 0.15, 0.15, 0.15]
+                confidence_level = max(0.70, min(0.95,
+                    sum(f * w for f, w in zip(confidence_factors, weights))
+                ))
                 
                 predictions.append({
-                    'day': i + 1,
-                    'date': future_dates[i].strftime('%Y-%m-%d'),
-                    'predicted_price': float(final_pred),
+                    'date': forecast_result.row_labels[i].strftime('%Y-%m-%d'),
+                    'predicted_price': float(pred),
                     'lower_bound': float(lower),
                     'upper_bound': float(upper),
                     'confidence': float(confidence_level),
-                    'volatility': float(daily_volatility),
-                    'prediction_interval': float(upper - lower)
+                    'volatility': float(self.volatility),
+                    'prediction_interval': f"{float(lower):.2f} - {float(upper):.2f}"
                 })
             
-            if not predictions:
-                raise ValueError("Failed to generate any valid predictions")
+            # Calculate model accuracy instead of confidence
+            accuracy = float(1 - rmse/np.mean(self.training_data))
             
-            logger.info(f"Successfully generated {len(predictions)} predictions")
-            return predictions
+            return {
+                'predictions': predictions,
+                'model_metrics': {
+                    'accuracy': accuracy,  # Use this as the main metric in header
+                    'rmse': float(rmse),
+                    'volatility': float(self.volatility),
+                    'last_known_price': float(self.last_known_price)
+                }
+            }
             
         except Exception as e:
             logger.error(f"Error in predict_next_days: {str(e)}")

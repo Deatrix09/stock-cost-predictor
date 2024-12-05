@@ -28,4 +28,17 @@ export const theme = {
   chartContainer: "bg-gray-800/30 rounded-lg p-4 hover:bg-gray-800/40 transition-all duration-300",
   logo: "w-16 h-16 rounded-lg transition-all duration-300 ease-in-out",
   logoContainer: "bg-white p-2 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300",
+  tooltip: `
+    p-4 
+    bg-gray-800/95 
+    text-white text-sm 
+    rounded-lg
+    border border-gray-700/50 
+    backdrop-blur-sm
+    leading-relaxed
+    w-72
+    shadow-lg
+    ring-1 ring-black/5
+  `,
+  infoIcon: "text-gray-400 hover:text-gray-300 transition-colors duration-200 cursor-help ml-1 w-5 h-5",
 }; 

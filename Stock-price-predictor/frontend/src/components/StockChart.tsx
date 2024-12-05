@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { theme } from '../styles/theme';
 import { Line } from 'react-chartjs-2';
 import { HistoricalDataResponse } from '../types/StockTypes';
@@ -13,6 +13,7 @@ import {
   Tooltip,
   Legend
 } from 'chart.js';
+import LoadingIndicator from './LoadingIndicator';
 
 // Register ChartJS components
 ChartJS.register(
@@ -30,6 +31,16 @@ interface StockChartProps {
 }
 
 const StockChart: React.FC<StockChartProps> = ({ data }) => {
+  const [loading, setLoading] = useState(false);
+
+  if (loading) {
+    return (
+      <div className={`${theme.card} min-h-[400px] flex items-center justify-center`}>
+        <LoadingIndicator size="medium" />
+      </div>
+    );
+  }
+
   if (!data?.data || !Array.isArray(data.data) || data.data.length === 0) {
     return (
       <div className={theme.card}>
@@ -42,16 +53,18 @@ const StockChart: React.FC<StockChartProps> = ({ data }) => {
     );
   }
 
+  // Sort data by date in descending order (newest first)
   const sortedData = [...data.data].sort((a, b) => 
-    new Date(a.date).getTime() - new Date(b.date).getTime()
+    new Date(b.date).getTime() - new Date(a.date).getTime()
   );
 
   const chartData = {
-    labels: sortedData.map(item => new Date(item.date).toLocaleDateString()),
+    // For chart, we still want ascending order
+    labels: [...sortedData].reverse().map(item => new Date(item.date).toLocaleDateString()),
     datasets: [
       {
         label: 'Close Price',
-        data: sortedData.map(item => item.close),
+        data: [...sortedData].reverse().map(item => item.close),
         borderColor: '#7c3aed',
         backgroundColor: 'rgba(124, 58, 237, 0.1)',
         tension: 0.4,
@@ -61,7 +74,7 @@ const StockChart: React.FC<StockChartProps> = ({ data }) => {
       },
       {
         label: 'Open Price',
-        data: sortedData.map(item => item.open),
+        data: [...sortedData].reverse().map(item => item.open),
         borderColor: 'rgba(124, 58, 237, 0.2)',
         backgroundColor: 'rgba(124, 58, 237, 0.05)',
         tension: 0.4,
@@ -136,7 +149,11 @@ const StockChart: React.FC<StockChartProps> = ({ data }) => {
       <div className={theme.cardHeader}>
         <h2 className={theme.title}>Historical Price Data</h2>
         <p className={theme.subtitle}>
-          {data.data.length} historical records
+          {sortedData.length} historical records • {
+            new Date(sortedData[0].date).toLocaleDateString()
+          } - {
+            new Date(sortedData[sortedData.length - 1].date).toLocaleDateString()
+          }
         </p>
       </div>
 
@@ -148,7 +165,7 @@ const StockChart: React.FC<StockChartProps> = ({ data }) => {
           </div>
         </div>
 
-        {/* Historical Data Table with Fixed Header */}
+        {/* Historical Data Table */}
         <div className="mt-8">
           <div className="relative overflow-hidden">
             <div className="overflow-x-auto">
@@ -156,12 +173,12 @@ const StockChart: React.FC<StockChartProps> = ({ data }) => {
                 <table className={`${theme.table} relative`}>
                   <thead className="sticky top-0 z-10 bg-gray-900">
                     <tr>
-                      <th className={`${theme.tableHeader} p-4 whitespace-nowrap`}>Date</th>
-                      <th className={`${theme.tableHeader} p-4 whitespace-nowrap`}>Open</th>
-                      <th className={`${theme.tableHeader} p-4 whitespace-nowrap`}>High</th>
-                      <th className={`${theme.tableHeader} p-4 whitespace-nowrap`}>Low</th>
-                      <th className={`${theme.tableHeader} p-4 whitespace-nowrap`}>Close</th>
-                      <th className={`${theme.tableHeader} p-4 whitespace-nowrap`}>Volume</th>
+                      <th className={`${theme.tableHeader} p-4 whitespace-nowrap text-left`}>Date</th>
+                      <th className={`${theme.tableHeader} p-4 whitespace-nowrap text-right`}>Open</th>
+                      <th className={`${theme.tableHeader} p-4 whitespace-nowrap text-right`}>High</th>
+                      <th className={`${theme.tableHeader} p-4 whitespace-nowrap text-right`}>Low</th>
+                      <th className={`${theme.tableHeader} p-4 whitespace-nowrap text-right`}>Close</th>
+                      <th className={`${theme.tableHeader} p-4 whitespace-nowrap text-right`}>Volume</th>
                     </tr>
                   </thead>
                   <tbody className="relative">
@@ -170,22 +187,22 @@ const StockChart: React.FC<StockChartProps> = ({ data }) => {
                         key={`${row.date}-${index}`}
                         className="hover:bg-gray-800/50 transition-colors duration-200"
                       >
-                        <td className={`${theme.tableCell} p-4 whitespace-nowrap`}>
+                        <td className={`${theme.tableCell} p-4 whitespace-nowrap text-left`}>
                           {new Date(row.date).toLocaleDateString()}
                         </td>
-                        <td className={`${theme.tableCell} p-4 whitespace-nowrap`}>
+                        <td className={`${theme.tableCell} p-4 whitespace-nowrap text-right`}>
                           {formatCurrency(row.open)}
                         </td>
-                        <td className={`${theme.tableCell} p-4 whitespace-nowrap`}>
+                        <td className={`${theme.tableCell} p-4 whitespace-nowrap text-right`}>
                           {formatCurrency(row.high)}
                         </td>
-                        <td className={`${theme.tableCell} p-4 whitespace-nowrap`}>
+                        <td className={`${theme.tableCell} p-4 whitespace-nowrap text-right`}>
                           {formatCurrency(row.low)}
                         </td>
-                        <td className={`${theme.tableCell} p-4 whitespace-nowrap`}>
+                        <td className={`${theme.tableCell} p-4 whitespace-nowrap text-right`}>
                           {formatCurrency(row.close)}
                         </td>
-                        <td className={`${theme.tableCell} p-4 whitespace-nowrap`}>
+                        <td className={`${theme.tableCell} p-4 whitespace-nowrap text-right`}>
                           {formatNumber(row.volume)}
                         </td>
                       </tr>

@@ -84,12 +84,20 @@ export interface ModelMetrics {
 }
 
 export interface PredictionResponse {
-  symbol: string;
-  predictions: PredictionDataPoint[];
-  model_type: string;
-  forecast_days: number;
-  training_period: string;
-  data_points_used: number;
-  model_metrics: ModelMetrics;
-  last_updated: string;
+  predictions: {
+    date: string;
+    predicted_price: number;
+    lower_bound: number;
+    upper_bound: number;
+    confidence: number;
+    volatility: number;
+    prediction_interval: string;
+  }[];
+  model_metrics: {
+    accuracy: number;
+    rmse: number;
+    volatility: number;
+    last_known_price: number;
+    confidence: number;
+  };
 }

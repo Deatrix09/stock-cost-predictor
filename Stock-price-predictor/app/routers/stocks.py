@@ -33,36 +33,28 @@ def get_logo_url(symbol: str) -> str:
 @router.get("/historical/{symbol}")
 async def get_historical_data(
     symbol: str,
-    period: Optional[str] = "5y",
+    period: Optional[str] = "1y",
     interval: Optional[str] = "1d"
 ):
-    """
-    Get historical stock data for a given symbol
-    """
+    """Get historical stock data for a given symbol"""
     try:
-        print(f"Fetching historical data for {symbol}")
         stock = yf.Ticker(symbol)
         hist = stock.history(period=period, interval=interval)
         
-        if hist.empty:
-            print(f"No historical data found for {symbol}")
-            raise HTTPException(status_code=404, detail=f"No historical data found for {symbol}")
+        # Reset index to make date a column and sort by date
+        hist = hist.reset_index()
+        hist = hist.sort_values('Date', ascending=True)
         
-        print(f"Got {len(hist)} records for {symbol}")
-        
-        # Format all records
         formatted_data = []
-        for date, row in hist.iterrows():
+        for _, row in hist.iterrows():
             try:
                 record = {
-                    'date': date.isoformat() if isinstance(date, datetime) else str(date),
+                    'date': row['Date'].strftime('%Y-%m-%d'),
                     'open': float(row['Open']),
                     'high': float(row['High']),
                     'low': float(row['Low']),
                     'close': float(row['Close']),
                     'volume': int(row['Volume']),
-                    'dividends': float(row['Dividends']) if 'Dividends' in row else 0,
-                    'stockSplits': float(row['Stock Splits']) if 'Stock Splits' in row else 0
                 }
                 formatted_data.append(record)
             except Exception as e:
@@ -73,7 +65,7 @@ async def get_historical_data(
             raise HTTPException(status_code=500, detail="Failed to format any records")
             
         return {
-            "symbol": symbol,
+            "symbol": symbol.upper(),
             "data": formatted_data
         }
             

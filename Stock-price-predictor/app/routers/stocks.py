@@ -33,7 +33,7 @@ def get_logo_url(symbol: str) -> str:
 @router.get("/historical/{symbol}")
 async def get_historical_data(
     symbol: str,
-    period: Optional[str] = "5y",
+    period: Optional[str] = "1y",
     interval: Optional[str] = "1d"
 ):
     """
@@ -47,6 +47,11 @@ async def get_historical_data(
         if hist.empty:
             print(f"No historical data found for {symbol}")
             raise HTTPException(status_code=404, detail=f"No historical data found for {symbol}")
+        
+
+        # Reset history index to make it more readable
+        hist = hist.reset_index()
+        hist = hist.sort_values('Date', ascending=True)
         
         print(f"Got {len(hist)} records for {symbol}")
         
@@ -73,7 +78,7 @@ async def get_historical_data(
             raise HTTPException(status_code=500, detail="Failed to format any records")
             
         return {
-            "symbol": symbol,
+            "symbol": symbol.upper(),
             "data": formatted_data
         }
             
